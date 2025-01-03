@@ -1,5 +1,3 @@
-Here is the updated README file including the features of the host and investor dashboards:
-
 # AirBnB Data Insights
 
 In this repository, we explore the dynamic and highly competitive Airbnb market in Los Angeles using R and Tableau, focusing on providing actionable insights for key stakeholders: customers, hosts, and investors.
