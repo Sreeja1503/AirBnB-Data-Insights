@@ -1,0 +1,195 @@
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+airbnb_data <- read.csv("listings.csv.gz") |>
+  mutate(
+    price = as.numeric(gsub("[\\$,]", "", price)),# cleaning price column
+    neighbourhood_cleansed = as.factor(neighbourhood_cleansed),# converting neighborhood to factor
+    id = as.factor(id),# converting to factor
+    host_since = as.Date(host_since, format = "%Y-%m-%d"),# converting to datetime
+    first_review = as.Date(first_review, format = "%Y-%m-%d"),# converting to datetime
+    last_review = as.Date(last_review, format = "%Y-%m-%d"),# converting to datetime
+    last_scraped = as.Date(last_scraped, format = "%Y-%m-%d") # converting to datetime
+  )
+# Removing other cities
+airbnb_data <- airbnb_data %>%
+  filter(neighbourhood_group_cleansed == "City of Los Angeles")
+
+# Imputing missing values of price  
+airbnb_data <- airbnb_data %>%
+  group_by(neighbourhood_cleansed, room_type) %>%
+  mutate(price = ifelse(is.na(price), median(price, na.rm = TRUE), price)) %>%
+  ungroup()
+# Host Tenure Calculation
+airbnb_data <- airbnb_data %>%
+  mutate(
+    host_tenure_years = as.numeric(difftime(last_scraped, host_since, units = "days")) / 365
+  )
+
+airbnb_data <- airbnb_data |>
+  filter(!is.na(price))  # Ensure no missing prices remain
+category_patterns <- list(
+  "Entertainment" = "tv|television|wifi|speaker|sound|theater|bluetooth|game|xbox|ps|netflix|prime|disney|hulu|roku|hbo|cable| table| field| court",
+  "Work-Friendly" = "ethernet|work",
+  "Pet-Friendly" = "pet",
+  "Scenic & Outdoor Features" = "rooftop|view|access|patio|balcony|pool|outdoor",
+  "Fully Equipped Kitchen" = "kitchen|cooking|dishes|fridge|refrigerator|freezer|blender|grill|coffee|toaster|kettle|oven|stove|microwave|wine|dining|rice|cooker",
+  "Comfort Features" = "ac|air conditioning|fan|light|cooling|heating",
+  "Bathroom Essentials" = "body|shower|hot water|soap|shampoo|bathtub|bath tub|conditioner|hair dryer|toiletries|essentials",
+  "Laundry & Cleaning Services" = "house|linen|cleaning|washer|dryer|laundry|iron|closet",
+  "Fitness & Wellness" = "workout|exercise|fitness|gym|yoga",
+  "Luxury Features" = "hot tub|bar|lounge|spa|sauna|private|massage|steam|golf|fireplace|fire pit",
+  "Accessibility-Friendly" = "elevator|wheelchair|wheel chair|lift|handicap",
+  "Child & Family-Friendly" = "baby|kid|child|crib|play",
+  "Safety & Security" = "first aid|security|camera|safety|alarm|safety|safe|lock|extinguisher|gated",
+  "Parking" = "parking|garage"
+)
+
+extract_keywords <- function(amenities, pattern) {
+  matches <- str_extract_all(tolower(amenities), pattern)  # Match standardized keywords
+  unique(unlist(matches)) %>% paste(collapse = ", ")  # Keep unique matches and collapse into a string
+}
+
+airbnb_data <- airbnb_data %>%
+  mutate(
+    Entertainment = sapply(amenities, extract_keywords, category_patterns[["Entertainment"]]),
+    Work_Friendly = sapply(amenities, extract_keywords, category_patterns[["Work-Friendly"]]),
+    Pet_Friendly = sapply(amenities, extract_keywords, category_patterns[["Pet-Friendly"]]),
+    Scenic_Outdoor = sapply(amenities, extract_keywords, category_patterns[["Scenic & Outdoor Features"]]),
+    Kitchen_Features = sapply(amenities, extract_keywords, category_patterns[["Fully Equipped Kitchen"]]),
+    Comfort = sapply(amenities, extract_keywords, category_patterns[["Comfort Features"]]),
+    Bathroom_Essentials = sapply(amenities, extract_keywords, category_patterns[["Bathroom Essentials"]]),
+    Laundry_Cleaning = sapply(amenities, extract_keywords, category_patterns[["Laundry & Cleaning Services"]]),
+    Fitness_Wellness = sapply(amenities, extract_keywords, category_patterns[["Fitness & Wellness"]]),
+    Luxury_Features = sapply(amenities, extract_keywords, category_patterns[["Luxury Features"]]),
+    Accessibility = sapply(amenities, extract_keywords, category_patterns[["Accessibility-Friendly"]]),
+    Child_Friendly = sapply(amenities, extract_keywords, category_patterns[["Child & Family-Friendly"]]),
+    Safety_Security = sapply(amenities, extract_keywords, category_patterns[["Safety & Security"]]),
+    Parking = sapply(amenities, extract_keywords, category_patterns[["Parking"]])
+  )
+
+```
+
+
+```{r}
+colnames(airbnb_data)
+
+```
+
+```{r}
+columns_to_keep <- c(
+  "id", 
+  "listing_url", 
+  "name", 
+  "description", 
+  "neighborhood_overview", 
+  "host_id", 
+  "host_name", 
+  "host_since", 
+  "host_response_time", 
+  "host_response_rate", 
+  "host_is_superhost", 
+  "host_verifications", 
+  "host_tenure_years",
+  "host_identity_verified", 
+  "neighbourhood_cleansed", 
+  "neighbourhood_group_cleansed", 
+  "latitude", 
+  "longitude", 
+  "property_type", 
+  "room_type", 
+  "accommodates", 
+  "bathrooms_text", 
+  "bedrooms", 
+  "beds", 
+  "amenities", 
+  "price", 
+  "minimum_nights", 
+  "maximum_nights", 
+  "minimum_nights_avg_ntm", 
+  "maximum_nights_avg_ntm", 
+  "availability_30", 
+  "availability_365", 
+  "number_of_reviews", 
+  "number_of_reviews_ltm", 
+  "number_of_reviews_l30d", 
+  "first_review", 
+  "last_review", 
+  "review_scores_rating", 
+  "review_scores_cleanliness", 
+  "review_scores_communication", 
+  "review_scores_location", 
+  "review_scores_value", 
+  "instant_bookable", 
+  "reviews_per_month",
+  "Entertainment", 
+  "Work_Friendly", 
+  "Pet_Friendly", 
+  "Scenic_Outdoor", 
+  "Kitchen_Features", 
+  "Comfort", 
+  "Bathroom_Essentials", 
+  "Laundry_Cleaning", 
+  "Fitness_Wellness", 
+  "Luxury_Features", 
+  "Accessibility", 
+  "Child_Friendly", 
+  "Safety_Security", 
+  "Parking"
+)
+
+cleaned_airbnb_data <- airbnb_data[, columns_to_keep]
+
+cleaned_airbnb_data <- cleaned_airbnb_data %>%
+  rename(
+    ListingID = id,
+    ListingURL = listing_url,
+    ListingName = name,
+    HostID = host_id,
+    HostName = host_name,
+    Neighbourhood = neighbourhood_cleansed,
+    NeighbourhoodGroup = neighbourhood_group_cleansed,
+    Latitude = latitude,
+    Longitude = longitude,
+    PropertyType = property_type,
+    RoomType = room_type,
+    GuestsAccommodated = accommodates,
+    Bathrooms = bathrooms_text,
+    Bedrooms = bedrooms,
+    Beds = beds,
+    Amenities = amenities,
+    PricePerNight = price,
+    FirstReviewDate = first_review,
+    LastReviewDate = last_review,
+    Superhost = host_is_superhost,
+    BookInstantly = instant_bookable,
+  )
+```
+```{r}
+# Data Standardization 
+cleaned_airbnb_data$Bathrooms <- as.numeric(gsub("[^0-9.-]", "", cleaned_airbnb_data$Bathrooms)) 
+cleaned_airbnb_data$Superhost <- tolower(cleaned_airbnb_data$Superhost)  # Convert to lowercase for consistency
+cleaned_airbnb_data$Superhost <- ifelse(cleaned_airbnb_data$Superhost == "t", "Yes", "No")  # Standardize "Yes"/"No" values
+cleaned_airbnb_data$Superhost <- factor(cleaned_airbnb_data$Superhost)  # Convert to factor
+cleaned_airbnb_data$RoomType <- factor(cleaned_airbnb_data$RoomType)
+cleaned_airbnb_data$PropertyType <- factor(cleaned_airbnb_data$PropertyType)
+cleaned_airbnb_data$BookInstantly <- ifelse(cleaned_airbnb_data$BookInstantly == "t", "Yes", "No")
+cleaned_airbnb_data$host_identity_verified <- ifelse(cleaned_airbnb_data$host_identity_verified == "t", "Yes", "No")
+
+```
+```{r}
+cleaned_airbnb_data = cleaned_airbnb_data[grep("[a-zA-Z0-9]", cleaned_airbnb_data$ListingName), ]
+```
+
+```{r}
+write.csv(cleaned_airbnb_data, "listings_updated.csv", row.names = FALSE)
+
+```
+
+
